@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Users - Admin - DeepGuard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <header>
+        <nav>
+             <a href="{{ url_for('home_page') }}" class="logo">DeepGuard</a>
+            <ul>
+                {% if session.username %}
+                <li class="user-greeting">Hi, {{ session.username }} (Admin)</li>
+                {% endif %}
+                <li><a href="{{ url_for('home_page') }}">Home</a></li>
+                <li><a href="{{ url_for('detect_page') }}">Detect</a></li>
+                <li><a href="{{ url_for('history_page') }}">My History</a></li>
+                <li><a href="{{ url_for('admin_dashboard_page') }}">Admin Dashboard</a></li>
+                <li><a href="{{ url_for('update_password_page') }}">Settings</a></li>
+                <li><a href="{{ url_for('logout') }}">Logout</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <div class="container">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                 <h1 class="page-title" style="margin-bottom:0;">Manage Users</h1>
+                 </div>
+            <div id="adminAlertMessage" class="alert" style="display:none;"></div>
+
+            {% if users %}
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>User ID</th>
+                        <th>Admin?</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td>{{ user.username }}</td>
+                        <td>{{ user.user_id }}</td>
+                        <td>{{ 'Yes' if user.is_admin else 'No' }}</td>
+                        <td class="actions">
+                            {% if user.username != 'admin' %} <button class="btn btn-secondary btn-sm" onclick="resetPassword('{{ user.user_id }}', '{{ user.username }}')">Reset Pass</button>
+                            <button class="btn btn-danger btn-sm" onclick="deleteUser('{{ user.user_id }}', '{{ user.username }}')">Delete</button>
+                            {% else %}
+                            <span>(System Admin)</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="alert alert-info">No users found (this should not happen, at least admin exists).</div>
+            {% endif %}
+        </div>
+    </main>
+
+    <footer>
+        <p>&copy; {{ year }} DeepGuard Detection System. For research purposes.</p>
+    </footer>
+
+    <script>
+        const adminAlertEl = document.getElementById('adminAlertMessage');
+
+        function showAdminAlert(message, type = 'error') {
+            adminAlertEl.textContent = message;
+            adminAlertEl.className = `alert alert-${type}`;
+            adminAlertEl.style.display = 'block';
+            setTimeout(() => { adminAlertEl.style.display = 'none'; }, 5000);
+        }
+
+        function deleteUser(userId, username) {
+            if (!confirm(`Are you sure you want to delete user "${username}"? This action cannot be undone.`)) {
+                return;
+            }
+            fetch(`{{ url_for('admin_delete_user', user_id_to_delete='USER_ID_PLACEHOLDER') }}`.replace('USER_ID_PLACEHOLDER', userId), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' } 
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAdminAlert(data.message, 'success');
+                    setTimeout(() => window.location.reload(), 1500);
+                } else {
+                    showAdminAlert(data.message || 'Failed to delete user.', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error deleting user:', error);
+                showAdminAlert('An error occurred while trying to delete the user.', 'error');
+            });
+        }
+
+        function resetPassword(userId, username) {
+            if (!confirm(`Are you sure you want to reset the password for user "${username}"? They will be assigned a temporary password.`)) {
+                return;
+            }
+             fetch(`{{ url_for('admin_reset_password', user_id_to_reset='USER_ID_PLACEHOLDER') }}`.replace('USER_ID_PLACEHOLDER', userId), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAdminAlert(data.message, 'success');
+                    
+                } else {
+                    showAdminAlert(data.message || 'Failed to reset password.', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error resetting password:', error);
+                showAdminAlert('An error occurred while trying to reset the password.', 'error');
+            });
+        }
+         document.addEventListener('DOMContentLoaded', function() {
+            document.querySelector('footer p').innerHTML = document.querySelector('footer p').innerHTML.replace('{{ year }}', new Date().getFullYear());
+        });
+    </script>
+</body>
+</html>

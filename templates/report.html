@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analysis Report - DeepGuard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="{{ url_for('home_page') }}" class="logo">DeepGuard</a>
+            <ul>
+                {% if session.username %}
+                <li class="user-greeting">Hi, {{ session.username }}</li>
+                {% endif %}
+                <li><a href="{{ url_for('home_page') }}">Home</a></li>
+                <li><a href="{{ url_for('detect_page') }}">Detect New</a></li>
+                <li><a href="{{ url_for('history_page') }}">History</a></li>
+                {% if session.is_admin %}
+                <li><a href="{{ url_for('admin_dashboard_page') }}">Admin</a></li>
+                {% endif %}
+                <li><a href="{{ url_for('update_password_page') }}">Settings</a></li>
+                <li><a href="{{ url_for('logout') }}">Logout</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <div class="container">
+            <div id="alertMessage" class="alert" style="display:none;"></div>
+            <div class="report-header">
+                <h1 class="page-title">Analysis Report</h1>
+                <div>
+                    <button id="downloadPdfBtn" class="btn btn-secondary" disabled>Download PDF Report</button>
+                    <a href="{{ url_for('detect_page') }}" class="btn">Analyze Another Video</a>
+                </div>
+            </div>
+
+            <section class="analysis-result-section">
+                <div class="result-summary">
+                    <span id="classificationStatus">STATUS</span> <p class="confidence" id="confidenceScore">Confidence: --.--%</p>
+                    <p id="videoFileName" style="font-size: 0.9em; color: var(--secondary-text); margin-top: 5px;">File: N/A</p>
+                </div>
+
+                <div class="chart-container">
+                    <h3>Overall Confidence Distribution</h3>
+                    <canvas id="overallConfidenceChart"></canvas>
+                </div>
+
+                <div class="details-grid">
+                    <div class="detail-item">
+                        <h4>Frames Analyzed</h4>
+                        <p id="framesAnalyzed">--</p>
+                    </div>
+                    <div class="detail-item">
+                        <h4>Processing Time</h4>
+                        <p id="processingTime">-.--s</p>
+                    </div>
+                    <div class="detail-item">
+                        <h4>Model Confidence (Overall Real Likelihood)</h4>
+                        <p id="modelConfidence">--.--%</p> </div>
+                </div>
+
+                <div class="chart-container">
+                    <h3>Detector Component Scores (Likelihood of REAL)</h3>
+                    <canvas id="detectorScoresChart"></canvas>
+                </div>
+
+                <div class="analyzed-frames-container" id="framePreviewsSection" style="display:none;">
+                    <h3>Key Analyzed Frame Previews</h3>
+                    <div class="frames-grid" id="framesGrid">
+                        </div>
+                </div>
+
+                <section class="model-insights-section">
+                    <h3>Model Insights & Approach</h3>
+                    <p>
+                        This DeepFake detection system employs a hybrid approach, integrating simulated multiple AI techniques
+                        to enhance detection accuracy and robustness. By analyzing spatial artifacts (via CNN-like methods),
+                        temporal inconsistencies (via LSTM-like methods), and global contextual patterns (via Transformer-like methods),
+                        the system aims to identify a wider range of manipulation techniques.
+                    </p>
+                    <p>
+                        The scores from each component (indicating likelihood of the video being REAL) are combined using predefined weights to produce a final classification and confidence score.
+                        Future work would involve training these components on diverse datasets.
+                    </p>
+                </section>
+            </section>
+        </div>
+    </main>
+
+    <footer>
+        <p>&copy; {{ year }} DeepGuard Detection System. For research purposes.</p>
+    </footer>
+
+    <script>
+        let currentAnalysisResult = null;
+        let overallChart = null;
+        let detectorChart = null;
+
+        function showAlert(message, type = 'error') {
+            const alertMessageEl = document.getElementById('alertMessage');
+            alertMessageEl.textContent = message;
+            alertMessageEl.className = `alert alert-${type}`;
+            alertMessageEl.style.display = 'block';
+        }
+
+        function displayAnalysisResult(resultData) {
+            currentAnalysisResult = resultData; 
+            console.log("Displaying analysis result:", currentAnalysisResult);
+
+            const classificationStatusEl = document.getElementById('classificationStatus');
+            const confidenceScoreEl = document.getElementById('confidenceScore');
+            const framesAnalyzedEl = document.getElementById('framesAnalyzed');
+            const processingTimeEl = document.getElementById('processingTime');
+            const modelConfidenceEl = document.getElementById('modelConfidence');
+            const videoFileNameEl = document.getElementById('videoFileName');
+            const downloadBtn = document.getElementById('downloadPdfBtn');
+
+
+            if (currentAnalysisResult && currentAnalysisResult.success) {
+                classificationStatusEl.textContent = currentAnalysisResult.classification || "N/A";
+                if (currentAnalysisResult.classification === "REAL") {
+                    classificationStatusEl.className = 'status-real';
+                } else if (currentAnalysisResult.classification === "FAKE") {
+                    classificationStatusEl.className = 'status-fake';
+                } else {
+                    classificationStatusEl.className = '';
+                }
+
+                const displayConfidence = parseFloat(currentAnalysisResult.confidence);
+                confidenceScoreEl.textContent = `Confidence: ${displayConfidence.toFixed(2)}%`;
+
+                videoFileNameEl.textContent = `File: ${currentAnalysisResult.filename || 'N/A'}`;
+                framesAnalyzedEl.textContent = currentAnalysisResult.frames_analyzed !== undefined ? currentAnalysisResult.frames_analyzed : "--";
+                processingTimeEl.textContent = currentAnalysisResult.processing_time !== undefined ? `${parseFloat(currentAnalysisResult.processing_time).toFixed(2)}s` : "-.--s";
+
+                // Calculate overall real likelihood
+                // This is (100 - confidence) if FAKE, or confidence if REAL,
+                let combinedRealLikelihood = 0;
+                if (currentAnalysisResult.details) {
+                    const cnn = currentAnalysisResult.details.cnn_score_real || 0;
+                    const lstm = currentAnalysisResult.details.lstm_score_real || 0;
+                    const transformer = currentAnalysisResult.details.transformer_score_real || 0;
+                    combinedRealLikelihood = (0.4 * cnn + 0.3 * lstm + 0.3 * transformer) * 100;
+                }
+                modelConfidenceEl.textContent = `${combinedRealLikelihood.toFixed(2)}%`;
+
+
+                renderOverallConfidenceChart(currentAnalysisResult.classification, displayConfidence);
+                if (currentAnalysisResult.details) {
+                    renderDetectorScoresChart(currentAnalysisResult.details);
+                }
+                renderFramePreviews(currentAnalysisResult.frame_previews);
+                downloadBtn.disabled = false;
+            } else {
+                showAlert(currentAnalysisResult.message || "Analysis reported failure or data is malformed.");
+                classificationStatusEl.textContent = "Error loading result.";
+                downloadBtn.disabled = true;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if data is passed directly from server
+            const serverDataElement = document.getElementById('serverProvidedData');
+            let initialResultData = null;
+
+            // This is how Flask passes context to the template, I'll have to come back to it after the submission, it works but has some issues
+            {% if analysis_result_data %}
+                try {
+                    initialResultData = JSON.parse(JSON.stringify({{ analysis_result_data | tojson }}));
+                } catch (e) {
+                    console.error("Error parsing server-provided data:", e);
+                    showAlert("Could not load analysis data from server correctly.", "error");
+                }
+            {% endif %}
+
+            if (initialResultData) {
+                console.log("Loading data from server context:", initialResultData);
+                displayAnalysisResult(initialResultData);
+                localStorage.removeItem('analysisResult');
+            } else {
+                const resultString = localStorage.getItem('analysisResult');
+                if (resultString) {
+                    try {
+                        const storedResult = JSON.parse(resultString);
+                        console.log("Loading data from localStorage:", storedResult);
+                        displayAnalysisResult(storedResult);
+                    } catch (e) {
+                        console.error("Error parsing result from localStorage:", e);
+                        showAlert("Could not load analysis data from local storage.", "error");
+                    }
+                } else {
+                    showAlert("No analysis data found. Please analyze a video first via the Detect page.", "info");
+                    document.getElementById('classificationStatus').textContent = "No Analysis Data Found";
+                    document.getElementById('downloadPdfBtn').disabled = true;
+                }
+            }
+             document.querySelector('footer p').innerHTML = document.querySelector('footer p').innerHTML.replace('{{ year }}', new Date().getFullYear());
+
+
+            const downloadBtn = document.getElementById('downloadPdfBtn');
+            if (downloadBtn) {
+                downloadBtn.addEventListener('click', function() {
+                    if (currentAnalysisResult && currentAnalysisResult.success) {
+                        fetch("{{ url_for('download_report_pdf') }}", {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(currentAnalysisResult)
+                        })
+                        .then(response => {
+                            if (!response.ok) {
+                                return response.json().then(err => { throw new Error(err.error || 'PDF generation failed') });
+                            }
+                            return response.blob();
+                        })
+                        .then(blob => {
+                            const url = window.URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.style.display = 'none';
+                            a.href = url;
+                            const filename = currentAnalysisResult.filename || "video";
+                            a.download = `DeepFake_Analysis_Report_${filename.split('.')[0]}.pdf`;
+                            document.body.appendChild(a);
+                            a.click();
+                            window.URL.revokeObjectURL(url);
+                            a.remove();
+                        })
+                        .catch(error => {
+                            console.error('Error downloading PDF:', error);
+                            showAlert('Failed to download PDF report: ' + error.message, "error");
+                        });
+                    } else {
+                        showAlert('No valid analysis data available to download.', "warning");
+                    }
+                });
+            }
+        });
+
+        function renderFramePreviews(framePreviews) {
+            const framesGrid = document.getElementById('framesGrid');
+            const previewsSection = document.getElementById('framePreviewsSection');
+            if (!framePreviews || framePreviews.length === 0) {
+                previewsSection.style.display = 'none';
+                return;
+            }
+            framesGrid.innerHTML = ''; // Clear existing
+            previewsSection.style.display = 'block';
+
+            framePreviews.forEach(fp => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'frame-preview-item';
+
+                const img = document.createElement('img');
+
+                const filenameOnly = fp.path.split(/[\\/]/).pop();
+                img.src = `{{ url_for('uploaded_frame', filename='placeholder') }}`.replace('placeholder', filenameOnly);
+                img.alt = `Analyzed frame (${fp.status})`;
+                img.classList.add(`frame-border-${fp.status}`);
+
+                const statusP = document.createElement('p');
+                statusP.className = `frame-status frame-status-${fp.status}`;
+                statusP.textContent = fp.status.charAt(0).toUpperCase() + fp.status.slice(1);
+
+                itemDiv.appendChild(img);
+                itemDiv.appendChild(statusP);
+                framesGrid.appendChild(itemDiv);
+            });
+        }
+
+
+        function renderOverallConfidenceChart(classification, confidence) {
+            const ctx = document.getElementById('overallConfidenceChart').getContext('2d');
+            let chartData, chartLabels, chartColors;
+
+            const primaryColor = classification === 'REAL' ? '#2ecc71' : '#e74c3c';
+            const secondaryColor = '#4a5568'; 
+
+            chartData = [confidence, 100 - confidence];
+            chartLabels = [
+                `${classification} (${confidence.toFixed(1)}%)`,
+                `Uncertainty / Opposite (${(100 - confidence).toFixed(1)}%)`
+            ];
+            chartColors = [primaryColor, secondaryColor];
+
+            if (overallChart) overallChart.destroy();
+            overallChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: chartLabels,
+                    datasets: [{
+                        label: 'Overall Confidence',
+                        data: chartData,
+                        backgroundColor: chartColors,
+                        borderColor: 'var(--secondary-bg)',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top', labels: { color: 'var(--primary-text)' }},
+                        title: { display: false }
+                    }
+                }
+            });
+        }
+
+        function renderDetectorScoresChart(details) {
+            const ctx = document.getElementById('detectorScoresChart').getContext('2d');
+            const cnnScore = (details.cnn_score_real || 0) * 100;
+            const lstmScore = (details.lstm_score_real || 0) * 100;
+            const transformerScore = (details.transformer_score_real || 0) * 100;
+
+            if (detectorChart) detectorChart.destroy();
+            detectorChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['CNN (Spatial)', 'LSTM (Temporal)', 'Transformer (Global)'],
+                    datasets: [{
+                        label: 'Component Real Likelihood (%)',
+                        data: [cnnScore, lstmScore, transformerScore],
+                        backgroundColor: ['rgba(0, 191, 165, 0.7)', 'rgba(52, 152, 219, 0.7)', 'rgba(155, 89, 182, 0.7)'],
+                        borderColor: ['rgb(0, 191, 165)', 'rgb(52, 152, 219)', 'rgb(155, 89, 182)'],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    scales: {
+                        x: { beginAtZero: true, max: 100, ticks: { color: 'var(--primary-text)' }, grid: { color: 'rgba(224, 224, 224, 0.1)' }},
+                        y: { ticks: { color: 'var(--primary-text)' }, grid: { display: false } }
+                    },
+                    plugins: {
+                        legend: { display: true, labels: { color: 'var(--primary-text)' }},
+                        title: { display: false }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>

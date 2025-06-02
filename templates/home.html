@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome - DeepGuard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="{{ url_for('home_page') }}" class="logo">DeepGuard</a>
+            <ul>
+                {% if session.username %}
+                <li class="user-greeting">Hi, {{ session.username }}</li>
+                {% endif %}
+                <li><a href="{{ url_for('home_page') }}" class="active">Home</a></li>
+                <li><a href="{{ url_for('detect_page') }}">Detect</a></li>
+                <li><a href="{{ url_for('history_page') }}">History</a></li>
+                {% if session.is_admin %}
+                <li><a href="{{ url_for('admin_dashboard_page') }}">Admin</a></li>
+                {% endif %}
+                <li><a href="{{ url_for('update_password_page') }}">Settings</a></li>
+                <li><a href="{{ url_for('logout') }}">Logout</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <div class="container">
+            <section class="welcome-section">
+                <h1 class="page-title">Advanced DeepFake Detection</h1>
+                <p>
+                    Welcome, {{ session.username }}! Protect yourself from digital deception with our cutting-edge deepfake detection
+                    technology. Upload your video and get an instant analysis powered by advanced AI.
+                    This system aims to identify spatial and temporal inconsistencies in media.
+                </p>
+                <a href="{{ url_for('detect_page') }}" class="btn">Start Detection &raquo;</a>
+            </section>
+
+            <section class="features">
+                <div class="feature-item">
+                    <h3>High Accuracy (Simulated)</h3>
+                    <p>Our system aims for high accuracy by combining multiple detection techniques including simulated CNN, LSTM, and Transformer components.</p>
+                </div>
+                <div class="feature-item">
+                    <h3>Comprehensive Analysis</h3>
+                    <p>Analyzes both spatial artifacts within frames and temporal inconsistencies across video sequences for robust detection.</p>
+                </div>
+                <div class="feature-item">
+                    <h3>User-Friendly Interface</h3>
+                    <p>Simple upload process and clear, understandable results, designed for ease of use.</p>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <footer>
+        <p>&copy; {{ year }} DeepGuard Detection System. For research purposes.</p>
+    </footer>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelector('footer p').innerHTML = document.querySelector('footer p').innerHTML.replace('{{ year }}', new Date().getFullYear());
+        });
+    </script>
+</body>
+</html>

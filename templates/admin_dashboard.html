@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - DeepGuard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="{{ url_for('home_page') }}" class="logo">DeepGuard</a>
+            <ul>
+                {% if session.username %}
+                <li class="user-greeting">Hi, {{ session.username }} (Admin)</li>
+                {% endif %}
+                <li><a href="{{ url_for('home_page') }}">Home</a></li>
+                <li><a href="{{ url_for('detect_page') }}">Detect</a></li>
+                <li><a href="{{ url_for('history_page') }}">My History</a></li>
+                <li><a href="{{ url_for('admin_dashboard_page') }}" class="active">Admin Dashboard</a></li>
+                <li><a href="{{ url_for('update_password_page') }}">Settings</a></li>
+                <li><a href="{{ url_for('logout') }}">Logout</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <div class="container">
+            <h1 class="page-title">Admin Dashboard</h1>
+            <p>Welcome to the admin area. Here you can manage users and view system-wide activity.</p>
+
+            <div class="features" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));">
+                 <div class="feature-item">
+                    <a href="{{ url_for('admin_users_page') }}" style="text-decoration: none;">
+                        <h3><img src="https://img.icons8.com/ios-filled/50/00bfa5/user-group-man-man.png" alt="Users" style="vertical-align: middle; margin-right: 10px; height: 1.5em;"/>Manage Users</h3>
+                        <p>View, delete, and reset passwords for system users.</p>
+                    </a>
+                </div>
+                 <div class="feature-item">
+                     <a href="{{ url_for('admin_all_results_page') }}" style="text-decoration: none;">
+                        <h3><img src="https://img.icons8.com/ios-filled/50/00bfa5/activity-history.png" alt="Results" style="vertical-align: middle; margin-right: 10px; height: 1.5em;"/>View All Results</h3>
+                        <p>Access a log of all video analyses performed on the system.</p>
+                    </a>
+                </div>
+                </div>
+        </div>
+    </main>
+
+    <footer>
+        <p>&copy; {{ year }} DeepGuard Detection System. For research purposes.</p>
+    </footer>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelector('footer p').innerHTML = document.querySelector('footer p').innerHTML.replace('{{ year }}', new Date().getFullYear());
+        });
+    </script>
+</body>
+</html>

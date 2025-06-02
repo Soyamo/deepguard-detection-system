@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detect DeepFakes - DeepGuard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="{{ url_for('home_page') }}" class="logo">DeepGuard</a>
+            <ul>
+                {% if session.username %}
+                <li class="user-greeting">Hi, {{ session.username }}</li>
+                {% endif %}
+                <li><a href="{{ url_for('home_page') }}">Home</a></li>
+                <li><a href="{{ url_for('detect_page') }}" class="active">Detect</a></li>
+                <li><a href="{{ url_for('history_page') }}">History</a></li>
+                 {% if session.is_admin %}
+                <li><a href="{{ url_for('admin_dashboard_page') }}">Admin</a></li>
+                {% endif %}
+                <li><a href="{{ url_for('update_password_page') }}">Settings</a></li>
+                <li><a href="{{ url_for('logout') }}">Logout</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <div class="container">
+            <h1 class="page-title">Detect DeepFake Videos</h1>
+            <div id="alertMessage" class="alert" style="display:none;"></div>
+
+            <div class="upload-area">
+                <h2>Upload Your Video</h2>
+                <p>Select a video file for AI-powered analysis to detect potential manipulation.</p>
+
+                <div class="custom-file-upload-container" id="dropZone">
+                    <input type="file" id="videoFile" name="videoFile" accept=".mp4,.avi,.mov" style="display: none;">
+                    <label for="videoFile" class="btn btn-upload-label">Choose Video File</label>
+                    <span id="fileNameDisplay" class="file-name-display">No file chosen (or drag & drop)</span>
+                </div>
+
+                <div class="progress-bar-container" id="progressBarContainer">
+                    <div class="progress-bar" id="progressBar">0%</div>
+                </div>
+
+                <div class="video-preview-container" id="videoPreviewContainer">
+                    <video id="videoPreview" controls muted playsinline>
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+
+                <button type="button" class="btn" id="analyzeBtn" onclick="analyzeVideo()" disabled>Analyze Video</button>
+                <p class="supported-formats">Supported formats: MP4, AVI, MOV (Max size: 100MB)</p>
+            </div>
+
+            <div class="analysis-info-area" id="loadingIndicator" style="display:none;">
+                <div class="spinner"></div>
+                <h3>Analyzing Video...</h3>
+                <p>Please wait while the system processes your video. This may take a few moments.</p>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <p>&copy; {{ year }} DeepGuard Detection System. For research purposes.</p>
+    </footer>
+
+    <script>
+        const videoFileInput = document.getElementById('videoFile');
+        const fileNameDisplay = document.getElementById('fileNameDisplay');
+        const videoPreview = document.getElementById('videoPreview');
+        const videoPreviewContainer = document.getElementById('videoPreviewContainer');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const alertMessageEl = document.getElementById('alertMessage');
+        const progressBarContainer = document.getElementById('progressBarContainer');
+        const progressBar = document.getElementById('progressBar');
+        const dropZone = document.getElementById('dropZone');
+
+        function showAlert(message, type = 'error') {
+            alertMessageEl.textContent = message;
+            alertMessageEl.className = `alert alert-${type}`;
+            alertMessageEl.style.display = 'block';
+        }
+
+        function resetUploadState() {
+            videoFileInput.value = '';
+            fileNameDisplay.textContent = 'No file chosen (or drag & drop)';
+            videoPreview.src = "";
+            videoPreviewContainer.style.display = 'none';
+            analyzeBtn.disabled = true;
+            progressBarContainer.style.display = 'none';
+            progressBar.style.width = '0%';
+            progressBar.textContent = '0%';
+            alertMessageEl.style.display = 'none';
+        }
+
+        function handleFileSelect(file) {
+            if (file) {
+                fileNameDisplay.textContent = file.name;
+                const allowedExtensions = /(\.mp4|\.avi|\.mov)$/i;
+                if (!allowedExtensions.exec(file.name)) {
+                    showAlert('Invalid file type. Please upload MP4, AVI, or MOV videos.');
+                    resetUploadState();
+                    return;
+                }
+
+                const maxSizeMB = 100;
+                if (file.size > maxSizeMB * 1024 * 1024) {
+                    showAlert(`File is too large. Maximum size is ${maxSizeMB}MB.`);
+                    resetUploadState();
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    videoPreview.src = e.target.result;
+                    videoPreviewContainer.style.display = 'flex';
+                }
+                reader.readAsDataURL(file);
+                analyzeBtn.disabled = false;
+                alertMessageEl.style.display = 'none';
+            } else {
+                resetUploadState();
+            }
+        }
+
+        videoFileInput.addEventListener('change', function() {
+            handleFileSelect(this.files[0]);
+        });
+
+        // Drag and Drop
+        dropZone.addEventListener('dragover', (event) => {
+            event.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+        dropZone.addEventListener('drop', (event) => {
+            event.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (event.dataTransfer.files.length) {
+                videoFileInput.files = event.dataTransfer.files; 
+                handleFileSelect(event.dataTransfer.files[0]);
+            }
+        });
+
+
+        function analyzeVideo() {
+            if (!videoFileInput.files || videoFileInput.files.length === 0) {
+                showAlert('Please choose a video file first!');
+                return;
+            }
+
+            const file = videoFileInput.files[0];
+            const formData = new FormData();
+            formData.append('videoFile', file);
+
+            analyzeBtn.disabled = true;
+            loadingIndicator.style.display = 'block';
+            videoPreviewContainer.style.display = 'none'; 
+            progressBarContainer.style.display = 'block';
+            progressBar.style.width = '0%';
+            progressBar.textContent = '0%';
+            alertMessageEl.style.display = 'none';
+
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', "{{ url_for('analyze_video_route') }}", true);
+
+            xhr.upload.onprogress = function(event) {
+                if (event.lengthComputable) {
+                    const percentComplete = Math.round((event.loaded / event.total) * 100);
+                    progressBar.style.width = percentComplete + '%';
+                    progressBar.textContent = percentComplete + '%';
+                }
+            };
+
+            xhr.onload = function() {
+                loadingIndicator.style.display = 'none';
+                analyzeBtn.disabled = false; 
+
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        const data = JSON.parse(xhr.responseText);
+                        if (data.success) {
+                            localStorage.setItem('analysisResult', JSON.stringify(data));
+                            
+                            window.location.href = "{{ url_for('view_specific_report_page', result_id='--RESULT_ID--') }}".replace('--RESULT_ID--', data.result_id);
+                        } else {
+                            showAlert('Analysis failed: ' + (data.message || 'Unknown error from server.'));
+                            progressBarContainer.style.display = 'none';
+                        }
+                    } catch (e) {
+                        showAlert('Error parsing server response.');
+                        console.error("Parse error:", e, "Response:", xhr.responseText);
+                        progressBarContainer.style.display = 'none';
+                    }
+                } else {
+                    try {
+                         const errData = JSON.parse(xhr.responseText);
+                         showAlert(`Analysis error: ${xhr.status} - ${errData.message || 'Server error'}`);
+                    } catch (e) {
+                         showAlert(`Analysis error: ${xhr.status} - Server error, unable to parse response.`);
+                    }
+                    progressBarContainer.style.display = 'none';
+                }
+            };
+
+            xhr.onerror = function() {
+                loadingIndicator.style.display = 'none';
+                analyzeBtn.disabled = false;
+                showAlert('An network error occurred during analysis. Please check your connection.');
+                progressBarContainer.style.display = 'none';
+            };
+
+            xhr.send(formData);
+        }
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelector('footer p').innerHTML = document.querySelector('footer p').innerHTML.replace('{{ year }}', new Date().getFullYear());
+        });
+    </script>
+</body>
+</html>
